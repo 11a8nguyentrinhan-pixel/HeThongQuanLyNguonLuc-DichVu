@@ -49,7 +49,7 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen w-full bg-[#f6f6f2] text-[#10231b]">
       {/* SIDEBAR TRÁI — Cố định chiều rộng 260px (w-65) */}
-      <aside className="flex w-64 shrink-0 flex-col justify-between bg-[#0f2b20] px-4 py-6 text-[#e6efe9]">
+      <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col justify-between overflow-y-auto bg-[#0f2b20] px-4 py-6 text-[#e6efe9]">
         <div>
           {/* Logo Nori */}
           <div className="mb-5 flex items-center gap-3 px-1.5">

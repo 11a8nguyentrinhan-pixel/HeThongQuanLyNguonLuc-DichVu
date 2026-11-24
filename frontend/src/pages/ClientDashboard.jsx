@@ -50,7 +50,6 @@ export function ClientDashboard() {
       subtitleTag={currentMeta.tag}
       title={activeTab === 'overview' ? `Xin chào, ${user?.full_name || 'Khách hàng'}` : currentMeta.title}
       description={currentMeta.desc}
-      primaryActionText="+ Gửi yêu cầu mới"
       onPrimaryAction={() => req.openCreateModal(null)}
       searchPlaceholder="Tìm gói dịch vụ, yêu cầu, báo giá..."
     >
