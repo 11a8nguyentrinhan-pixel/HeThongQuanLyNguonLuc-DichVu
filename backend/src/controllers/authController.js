@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const { sendPasswordResetEmail } = require('../utils/emailService');
+const { generateNextUserId } = require('../utils/userIdGenerator');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'NovaWorks_Secret_2026';
 
@@ -12,6 +13,7 @@ const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 //1. Đăng ký tài khoản danh cho Client
 const signup = async(req, res) => {
     try {
+        const newId = await generateNextUserId(pool, 'Client');
         const full_name = (req.body.full_name || req.body.fullname || '').trim();
         const email = (req.body.email || '').trim().toLowerCase();
         const phone = (req.body.phone || '').trim();
@@ -61,6 +63,7 @@ const signup = async(req, res) => {
 
         // Lưu vào bảng users theo schema mới
         const insertResult = await pool.request()
+            .input('id', sql.VarChar(20), newId)
             .input('role_id', sql.Int, clientRole.id)
             .input('full_name', sql.NVarChar, full_name)
             .input('email', sql.VarChar, email)
@@ -68,9 +71,9 @@ const signup = async(req, res) => {
             .input('phone', sql.VarChar, phone)
             .input('status', sql.NVarChar, 'Active')
             .query(`
-                INSERT INTO dbo.[users] (role_id, full_name, email, password, phone, status)
+                INSERT INTO dbo.[users] (id, role_id, full_name, email, password, phone, status)
                 OUTPUT INSERTED.id, INSERTED.role_id, INSERTED.full_name, INSERTED.email, INSERTED.phone, INSERTED.status, INSERTED.created_at
-                VALUES (@role_id, @full_name, @email, @password, @phone, @status)
+                VALUES (@id, @role_id, @full_name, @email, @password, @phone, @status)
             `);
 
         const newUser = insertResult.recordset[0];
@@ -273,7 +276,7 @@ const resetPassword = async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(new_password, 10);
         await pool.request()
-            .input('id', sql.Int, user.id)
+            .input('id', sql.VarChar(20), user.id)
             .input('password', sql.VarChar, hashedPassword)
             .query('UPDATE dbo.[users] SET password = @password, reset_code = NULL, reset_expires = NULL WHERE id = @id');
 
@@ -321,7 +324,7 @@ const activateAccount = async(req,res)=>{
         if (newPassword) {
             const hashedPassword = await bcrypt.hash(newPassword, 10);
             await pool.request()
-                .input('id', sql.Int, user.id)
+                .input('id', sql.VarChar(20), user.id)
                 .input('password', sql.VarChar, hashedPassword)
                 .query(`
                     UPDATE dbo.[users]
@@ -330,7 +333,7 @@ const activateAccount = async(req,res)=>{
                 `);
         } else {
             await pool.request()
-                .input('id', sql.Int, user.id)
+                .input('id', sql.VarChar(20), user.id)
                 .query(`
                     UPDATE dbo.[users]
                     SET status = N'Active', reset_code = NULL, reset_expires = NULL

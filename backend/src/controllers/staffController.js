@@ -4,6 +4,7 @@ const crypto = require('crypto');
 
 const{ sendStaffInvitationEmail, sendRoleUpdatedEmail } = require('../utils/emailService');
 const { writeSystemLog, getClientIp}= require('../utils/auditLogger');
+const { generateNextUserId }= require('../utils/userIdGenerator');
 
 // ADMIN LẤY DANH SÁCH NHÂN SỰ NỘI BỘ (Manager & Member)
 const getStaffList = async (req, res) => {
@@ -31,9 +32,10 @@ const getStaffList = async (req, res) => {
     }
 };
 
-// ADMIN MỜI NHÂN SỰ NỘI BỘ (Tạo tài khoản Manager / Member)
+// ADMIN Tạo tài khoản cho nhân sự
 const inviteStaff = async (req, res) => {
     try {
+        const newId = await generateNextUserId(pool, role);
         const full_name = (req.body.full_name || req.body.fullname || '').trim();
         const email = (req.body.email || '').trim().toLowerCase();
         const phone = (req.body.phone || '0000000000').trim();
@@ -73,6 +75,7 @@ const inviteStaff = async (req, res) => {
         const hashedPassword = await bcrypt.hash(initialPassword, 10);
 
         await pool.request()
+            .input('id', sql.VarChar(20), newId)
             .input('role_id', sql.Int, roleResult.recordset[0].id)
             .input('full_name', sql.NVarChar, full_name)
             .input('email', sql.VarChar, email)
@@ -82,8 +85,8 @@ const inviteStaff = async (req, res) => {
             .input('reset_expires', sql.DateTime, inviteExpires)
             .input('status', sql.NVarChar, 'Chờ kích hoạt') // Có thể đổi sang N'Chờ kích hoạt' khi tích hợp gửi link email
             .query(`
-                INSERT INTO dbo.[users] (role_id, full_name, email, password, phone, reset_code, reset_expires, status)
-                VALUES (@role_id, @full_name, @email, @password, @phone, @reset_code, @reset_expires, @status)
+                INSERT INTO dbo.[users] (id, role_id, full_name, email, password, phone, reset_code, reset_expires, status)
+                VALUES (@id, @role_id, @full_name, @email, @password, @phone, @reset_code, @reset_expires, @status)
             `);
         const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
         const activateUrl = `${clientUrl}/auth?activateToken=${inviteToken}&email=${encodeURIComponent(email)}`;
@@ -114,7 +117,7 @@ const resendInvite = async (req, res) => {
         const pool = await connectDB();
 
         const result = await pool.request()
-            .input('id', sql.Int, id)
+            .input('id', sql.VarChar(20), id)
             .query(`
                 SELECT u.id, u.full_name, u.email, u.status, r.role_name AS role
                 FROM dbo.[users] u
@@ -135,7 +138,7 @@ const resendInvite = async (req, res) => {
         const newExpires = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
         await pool.request()
-            .input('id', sql.Int, id)
+            .input('id', sql.VarChar(20), id)
             .input('reset_code', sql.VarChar, newToken)
             .input('reset_expires', sql.DateTime, newExpires)
             .query('UPDATE dbo.[users] SET reset_code = @reset_code, reset_expires = @reset_expires WHERE id = @id');
@@ -167,7 +170,7 @@ const cancelInvite = async (req, res) => {
         const pool = await connectDB();
 
         const result = await pool.request()
-            .input('id', sql.Int, id)
+            .input('id', sql.VarChar(20), id)
             .query("DELETE FROM dbo.[users] WHERE id = @id AND status = N'Chờ kích hoạt'");
 
         if (result.rowsAffected[0] === 0) {
@@ -204,7 +207,7 @@ const updateStaffStatus = async (req, res) => {
 
         // Lấy thông tin nhân sự cần xử lý
         const staffResult = await pool.request()
-            .input('id', sql.Int, targetId)
+            .input('id', sql.VarChar(20), targetId)
             .query(`
                 SELECT u.id, u.full_name, u.email, u.status, r.role_name AS role
                 FROM dbo.[users] u
@@ -221,7 +224,7 @@ const updateStaffStatus = async (req, res) => {
         // NHÁNH 1: KHÓA / NGƯNG KÍCH HOẠT TÀI KHOẢN
         if (action === 'lock') {
             await pool.request()
-                .input('id', sql.Int, targetId)
+                .input('id', sql.VarChar(20), targetId)
                 .input('status', sql.NVarChar, 'Đã khóa')
                 .query('UPDATE dbo.[users] SET status = @status WHERE id = @id');
 
@@ -255,7 +258,7 @@ const updateStaffStatus = async (req, res) => {
 
             // Đủ điều kiện -> Mở khóa sang Active & Cấp lại quyền
             await pool.request()
-                .input('id', sql.Int, targetId)
+                .input('id', sql.VarChar(20), targetId)
                 .input('status', sql.NVarChar, 'Active')
                 .query('UPDATE dbo.[users] SET status = @status WHERE id = @id');
 
@@ -296,7 +299,7 @@ const updateStaffRole = async (req, res) => {
 
         // 1. Lấy thông tin nhân sự hiện tại
         const userResult = await pool.request()
-            .input('id', sql.Int, targetId)
+            .input('id', sql.VarChar(20), targetId)
             .query(`
                 SELECT u.id, u.full_name, u.email, u.status, r.role_name AS currentRole
                 FROM dbo.[users] u
@@ -330,7 +333,7 @@ const updateStaffRole = async (req, res) => {
         // 2b. Xung đột công việc đang mở khi hạ quyền từ Manager -> Member
         if (staff.currentRole === 'Manager' && newRole === 'Member') {
             const activeWorkCheck = await pool.request()
-                .input('manager_id', sql.Int, targetId)
+                .input('manager_id', sql.VarChar(20), targetId)
                 .query(`
                     SELECT
                         (CASE WHEN OBJECT_ID('dbo.projects', 'U') IS NOT NULL
@@ -363,7 +366,7 @@ const updateStaffRole = async (req, res) => {
 
         // 4. Cập nhật Role mới vào dbo.users (giữ nguyên toàn bộ lịch sử công việc cũ)
         await pool.request()
-            .input('id', sql.Int, targetId)
+            .input('id', sql.VarChar(20), targetId)
             .input('role_id', sql.Int, newRoleId)
             .query('UPDATE dbo.[users] SET role_id = @role_id WHERE id = @id');
 

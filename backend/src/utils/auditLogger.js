@@ -10,7 +10,7 @@ const getClientIp = (req) => {
 // Helper ghi nhật ký kiểm toán vào bảng dbo.system_logs
 const writeSystemLog = async (pool, { actorId, category, detail, ipAddress }) => {
     await pool.request()
-        .input('actor_id', sql.Int, actorId || null)
+        .input('actor_id', sql.VarChar(20), actorId || null)
         .input('log_category', sql.NVarChar, category)
         .input('action_detail', sql.NVarChar, detail)
         .input('ip_address', sql.VarChar, ipAddress || '127.0.0.1')

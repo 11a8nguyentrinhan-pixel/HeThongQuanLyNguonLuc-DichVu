@@ -15,7 +15,7 @@ const verifyToken = async (req, res, next) => {
         // Kiểm tra trạng thái thực tế trong DB để thu hồi phiên ngay nếu vừa bị Admin khóa
         const pool = await connectDB();
         const userResult = await pool.request()
-            .input('id', sql.Int, decoded.id || decoded.user_id)
+            .input('id', sql.VarChar(20), decoded.id || decoded.user_id)
             .query('SELECT status FROM dbo.[users] WHERE id = @id');
 
         if (userResult.recordset.length === 0) {

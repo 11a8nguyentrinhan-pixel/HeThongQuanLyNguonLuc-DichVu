@@ -83,13 +83,13 @@ export default function StaffAccountsTab({
           <tbody className="divide-y divide-[#eef1ef]">
             {loadingStaff ? (
               <tr>
-                <td colSpan={6} className="px-3.5 py-6 text-center text-[#6b7c74]">
+                <td colSpan={7} className="px-3.5 py-6 text-center text-[#6b7c74]">
                   Đang tải danh sách nhân sự...
                 </td>
               </tr>
             ) : filteredStaff.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3.5 py-6 text-center text-[#6b7c74]">
+                <td colSpan={7} className="px-3.5 py-6 text-center text-[#6b7c74]">
                   Không có nhân sự nào ở trạng thái này.
                 </td>
               </tr>
