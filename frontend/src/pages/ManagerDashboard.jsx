@@ -14,6 +14,11 @@ import ManagerOverviewTab from '../components/manager/tabs/ManagerOverviewTab';
 import ServiceRequestsTab from '../components/manager/tabs/ServiceRequestsTab';
 import ReviewRequestModal from '../components/manager/modals/ReviewRequestModal';
 
+import { useManagerQuotesContracts } from '../hooks/useManagerQuotesContracts';
+import QuotesContractsTab from '../components/manager/tabs/QuotesContractsTab';
+import CreateQuoteModal from '../components/manager/modals/CreateQuoteModal';
+import CreateContractModal from '../components/manager/modals/CreateContractModal';
+
 export function ManagerDashboard() {
   const { user, token } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
@@ -24,6 +29,16 @@ export function ManagerDashboard() {
   const menu = getManagerMenu({ pendingRequests: req.stats.pending });
   const currentMeta = MANAGER_TAB_META[activeTab] || MANAGER_TAB_META.overview;
   const currentManagerId = user?.id || user?.user_id;
+
+  const qc = useManagerQuotesContracts(token, setNotice);
+
+  const handleReviewAndRefreshAll = async (requestId, payload) => {
+    const ok = await req.handleReviewSubmit(requestId, payload);
+    if (ok && payload.action === 'approve_scope') {
+      await qc.fetchQuoteContractData();
+    }
+    return ok;
+  };
 
   return (
     <DashboardLayout
@@ -87,21 +102,51 @@ export function ManagerDashboard() {
           onRefresh={req.fetchRequests}
         />
       )}
-
-      {['quotes', 'projects', 'monitor', 'qa'].includes(activeTab) && (
+      {activeTab === 'quotes' && (
+        <QuotesContractsTab
+          readyRequests={qc.readyRequests}
+          quotations={qc.quotations}
+          contracts={qc.contracts}
+          loading={qc.loading}
+          submitting={qc.submitting}
+          onCreateQuote={qc.openCreateQuoteModal}
+          onCreateNewVersion={qc.openNewVersionModal}
+          onUpdateQuoteStatus={qc.handleUpdateQuoteStatus}
+          onDraftContract={qc.openContractModal}
+          onSendContract={qc.handleSendContract}
+          onRefresh={qc.fetchQuoteContractData}
+        />
+      )}
+      {['projects', 'monitor', 'qa'].includes(activeTab) && (
         <div className={`${cardClass} text-xs text-[#6b7c74]`}>
-          Phân hệ <strong>{currentMeta.breadcrumb}</strong> sẽ được triển khai ở bước tiếp theo sau khi chốt phạm vi hồ sơ yêu cầu.
+          Phân hệ <strong>{currentMeta.breadcrumb}</strong> sẽ được triển khai ở bước tiếp theo.
         </div>
       )}
-
-      {activeTab === 'profile' && <ProfilePanel user={user} />}
 
       <ReviewRequestModal
         open={req.reviewModal.open}
         request={req.reviewModal.request}
         submitting={req.submitting}
         onClose={req.closeReviewModal}
-        onSubmit={req.handleReviewSubmit}
+        onSubmit={handleReviewAndRefreshAll}
+      />
+
+      <CreateQuoteModal
+        open={qc.quoteModal.open}
+        mode={qc.quoteModal.mode}
+        requestItem={qc.quoteModal.requestItem}
+        baseQuote={qc.quoteModal.baseQuote}
+        submitting={qc.submitting}
+        onClose={qc.closeQuoteModal}
+        onSubmit={qc.handleSaveQuote}
+      />
+
+      <CreateContractModal
+        open={qc.contractModal.open}
+        quote={qc.contractModal.quote}
+        submitting={qc.submitting}
+        onClose={qc.closeContractModal}
+        onSubmit={qc.handleSaveContract}
       />
     </DashboardLayout>
   );

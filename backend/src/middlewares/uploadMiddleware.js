@@ -1,6 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const contractUploadDir = path.join(__dirname, '../../uploads/contracts');
 
 const uploadDir = path.join(__dirname, '../../uploads/requests');
 if (!fs.existsSync(uploadDir)) {
@@ -49,5 +50,32 @@ const uploadRequestFile = multer({
     cb(null, true);
   },
 });
+//
+if (!fs.existsSync(contractUploadDir)) {
+  fs.mkdirSync(contractUploadDir, { recursive: true });
+}
+const contractStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const subFolder = `${Date.now()}-${Math.round(Math.random() * 1e4)}`;
+    const targetDir = path.join(contractUploadDir, subFolder);
+    fs.mkdirSync(targetDir, { recursive: true });
+    req.uploadSubFolder = subFolder;
+    cb(null, targetDir);
+  },
+  filename: (req, file, cb) => cb(null, sanitizeFileName(file.originalname)),
+});
 
-module.exports = { uploadRequestFile };
+const uploadContractFile = multer({
+  storage: contractStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(decodeOriginalName(file.originalname)).toLowerCase();
+    if (!allowedExt.includes(ext)) {
+      return cb(new Error('Định dạng tệp không được hỗ trợ (chỉ nhận PDF, Word, Excel, Ảnh, ZIP).'));
+    }
+    cb(null, true);
+  },
+});
+
+
+module.exports = { uploadRequestFile, uploadContractFile };

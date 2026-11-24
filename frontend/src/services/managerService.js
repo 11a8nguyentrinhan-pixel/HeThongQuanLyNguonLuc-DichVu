@@ -1,4 +1,5 @@
 const REQUEST_API = 'http://localhost:5000/api/service-requests/manager';
+const QUOTE_CONTRACT_API = 'http://localhost:5000/api/quotes-contracts/manager';
 
 const getAuthHeaders = (token, isJson = false) => {
   const authToken =
@@ -9,11 +10,11 @@ const getAuthHeaders = (token, isJson = false) => {
   };
 };
 
-const request = async (url, { method = 'GET', token, body } = {}) => {
+const request = async (url, { method = 'GET', token, body, isFormData = false } = {}) => {
   const res = await fetch(url, {
     method,
-    headers: getAuthHeaders(token, Boolean(body)),
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    headers: getAuthHeaders(token, !isFormData && Boolean(body)),
+    ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {}),
   });
   const data = await res.json();
   return { ok: res.ok, status: res.status, data };
@@ -31,4 +32,22 @@ export const managerService = {
       token,
       body: payload,
     }),
+  getQuoteContractData: (token) => request(`${QUOTE_CONTRACT_API}/data`, { token }),
+  createQuotation: (token, payload) =>
+    request(`${QUOTE_CONTRACT_API}/quotes`, { method: 'POST', token, body: payload }),
+  updateQuotationStatus: (token, quoteId, status) =>
+    request(`${QUOTE_CONTRACT_API}/quotes/${quoteId}/status`, {
+      method: 'PATCH',
+      token,
+      body: { status },
+    }),
+  createContract: (token, formData) =>
+    request(`${QUOTE_CONTRACT_API}/contracts`, {
+      method: 'POST',
+      token,
+      body: formData,
+      isFormData: true,
+    }),
+  sendContractToClient: (token, contractId) =>
+    request(`${QUOTE_CONTRACT_API}/contracts/${contractId}/send`, { method: 'PATCH', token }),
 };

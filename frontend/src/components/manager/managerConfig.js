@@ -22,6 +22,16 @@ export const resolveAttachmentUrl = (url) => {
   if (/^https?:\/\//i.test(url)) return url;
   return `${BACKEND_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`;
 };
+export const getAttachmentName = (url) => {
+  if (!url) return '';
+  try {
+    const clean = url.split('?')[0].split('#')[0];
+    const fileName = clean.substring(clean.lastIndexOf('/') + 1);
+    return decodeURIComponent(fileName) || 'Tệp đính kèm';
+  } catch {
+    return 'Tệp đính kèm';
+  }
+};
 
 export const REQUEST_STATUS_BADGE_MAP = {
   'Chờ xử lý': 'bg-sky-50 text-sky-700 border-sky-200',
@@ -90,4 +100,20 @@ export const MANAGER_TAB_META = {
     title: 'Hồ sơ cá nhân',
     desc: 'Cập nhật thông tin liên hệ và bảo mật tài khoản Manager.',
   },
+};
+export const QUOTE_STATUS_BADGE_MAP = {
+  'Bản nháp': 'bg-slate-100 text-slate-700 border-slate-200',
+  'Đã gửi': 'bg-sky-50 text-sky-700 border-sky-200',
+  'Cần điều chỉnh': 'bg-amber-50 text-amber-800 border-amber-200',
+  'Chấp nhận': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Từ chối / Đóng': 'bg-rose-50 text-rose-700 border-rose-200',
+  'Hết hạn': 'bg-zinc-100 text-zinc-600 border-zinc-200',
+};
+
+export const CONTRACT_STATUS_BADGE_MAP = {
+  'Bản thảo': 'bg-slate-100 text-slate-700 border-slate-200',
+  'Chờ duyệt': 'bg-amber-50 text-amber-800 border-amber-200',
+  'Đã ký': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Đang hiệu lực': 'bg-teal-50 text-teal-700 border-teal-200',
+  'Đã đóng': 'bg-zinc-100 text-zinc-600 border-zinc-200',
 };

@@ -6,6 +6,8 @@ const authRoutes = require('./src/routes/authRoutes');
 const staffRoutes = require('./src/routes/staffRoutes');
 const systemLogRoutes = require('./src/routes/systemLogRoutes');
 const serviceRequestRoutes = require('./src/routes/serviceRequestRoutes');
+const quoteContractRoutes = require('./src/routes/quoteContractRoutes');
+
 
 const app = express();
 
@@ -19,6 +21,8 @@ app.use('/api/logs', systemLogRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/service-requests', serviceRequestRoutes);
+
+app.use('/api/quotes-contracts', quoteContractRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
