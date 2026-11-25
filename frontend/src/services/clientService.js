@@ -1,4 +1,5 @@
 const API_BASE = 'http://localhost:5000/api/service-requests';
+const QUOTE_CONTRACT_API = 'http://localhost:5000/api/quotes-contracts/client';
 
 const getToken = (token) =>
   token || localStorage.getItem('nova_token') || localStorage.getItem('token');
@@ -33,5 +34,19 @@ export const clientService = {
       token,
       body: formData,
       isFormData: true,
+    }),
+    // --- Tiếp nhận báo giá & Ký hợp đồng ---
+  getQuoteContractData: (token) => request(`${QUOTE_CONTRACT_API}/data`, { token }),
+  respondQuotation: (token, quoteId, action) =>
+    request(`${QUOTE_CONTRACT_API}/quotes/${quoteId}/respond`, {
+      method: 'PATCH',
+      token,
+      body: { action },
+    }),
+  signContract: (token, contractId, agreed) =>
+    request(`${QUOTE_CONTRACT_API}/contracts/${contractId}/sign`, {
+      method: 'PATCH',
+      token,
+      body: { agreed },
     }),
 };

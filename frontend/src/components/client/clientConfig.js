@@ -23,6 +23,17 @@ export const resolveAttachmentUrl = (url) => {
   return `${BACKEND_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`;
 };
 
+export const getAttachmentName = (url) => {
+  if (!url) return '';
+  try {
+    const clean = url.split('?')[0].split('#')[0];
+    const fileName = clean.substring(clean.lastIndexOf('/') + 1);
+    return decodeURIComponent(fileName) || 'Tệp đính kèm';
+  } catch {
+    return 'Tệp đính kèm';
+  }
+};
+
 export const REQUEST_STATUS_BADGE_MAP = {
   'Chờ xử lý': 'bg-sky-50 text-sky-700 border-sky-200',
   'Chờ làm rõ': 'bg-amber-50 text-amber-800 border-amber-200',
@@ -30,11 +41,11 @@ export const REQUEST_STATUS_BADGE_MAP = {
   'Từ chối': 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
-export const getClientMenu = ({ catalogCount = 0, requestCount = 0 } = {}) => [
+export const getClientMenu = ({ catalogCount = 0, requestCount = 0, pendingQuotes = 0, } = {}) => [
   { key: 'overview', label: 'Tổng quan' },
   { key: 'catalogs', label: 'Danh mục dịch vụ', badge: catalogCount || null },
   { key: 'requests', label: 'Yêu cầu của tôi', badge: requestCount || null },
-  { key: 'quotes', label: 'Báo giá & Hợp đồng' },
+  { key: 'quotes', label: 'Báo giá & Hợp đồng', badge: pendingQuotes || null },
   { key: 'projects', label: 'Dự án của tôi' },
   { key: 'payments', label: 'Thanh toán' },
   { key: 'deliverables', label: 'Bàn giao & Nghiệm thu' },
@@ -61,9 +72,9 @@ export const CLIENT_TAB_META = {
   },
   quotes: {
     breadcrumb: 'Báo giá & Hợp đồng',
-    tag: 'THƯƠNG LƯỢNG & PHÁP LÝ',
-    title: 'Báo giá & Hợp đồng điện tử',
-    desc: 'Xem các phiên bản báo giá từ Manager và ký duyệt hợp đồng.',
+    tag: 'QUY TRÌNH 2 · DUYỆT BÁO GIÁ & KÝ KẾT',
+    title: 'Tiếp nhận Báo giá & Ký kết Hợp đồng',
+    desc: 'Rà soát chi tiết hạng mục, đàm phán phiên bản báo giá và ký duyệt điện tử hợp đồng.',
   },
   projects: {
     breadcrumb: 'Dự án của tôi',
@@ -89,4 +100,18 @@ export const CLIENT_TAB_META = {
     title: 'Hồ sơ cá nhân',
     desc: 'Cập nhật thông tin liên hệ và bảo mật tài khoản.',
   },
+};
+export const CLIENT_QUOTE_BADGE_MAP = {
+  'Đã gửi': 'bg-sky-50 text-sky-700 border-sky-200',
+  'Cần điều chỉnh': 'bg-amber-50 text-amber-800 border-amber-200',
+  'Chấp nhận': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Từ chối / Đóng': 'bg-rose-50 text-rose-700 border-rose-200',
+  'Hết hạn': 'bg-zinc-100 text-zinc-600 border-zinc-200',
+};
+
+export const CLIENT_CONTRACT_BADGE_MAP = {
+  'Chờ duyệt': 'bg-amber-50 text-amber-800 border-amber-200',
+  'Đã ký': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Đang hiệu lực': 'bg-teal-50 text-teal-700 border-teal-200',
+  'Đã đóng': 'bg-zinc-100 text-zinc-600 border-zinc-200',
 };

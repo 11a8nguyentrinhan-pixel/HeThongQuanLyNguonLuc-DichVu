@@ -6,6 +6,9 @@ const {
   updateQuotationStatus,
   createContractFromQuote,
   sendContractToClient,
+  getClientQuoteContractData,
+  respondToQuotation,
+  signContractByClient,
 } = require('../controllers/quoteContractController');
 const { verifyToken, authorizeRoles } = require('../middlewares/authMiddleware');
 const { uploadContractFile } = require('../middlewares/uploadMiddleware');
@@ -27,5 +30,8 @@ router.post('/manager/quotes', authorizeRoles('Manager'), createQuotation);
 router.patch('/manager/quotes/:id/status', authorizeRoles('Manager'), updateQuotationStatus);
 router.post('/manager/contracts', authorizeRoles('Manager'), handleContractUpload, createContractFromQuote);
 router.patch('/manager/contracts/:id/send', authorizeRoles('Manager'), sendContractToClient);
-
+// Nhóm Route của CLIENT
+router.get('/client/data', authorizeRoles('Client'), getClientQuoteContractData);
+router.patch('/client/quotes/:id/respond', authorizeRoles('Client'), respondToQuotation);
+router.patch('/client/contracts/:id/sign', authorizeRoles('Client'), signContractByClient);
 module.exports = router;

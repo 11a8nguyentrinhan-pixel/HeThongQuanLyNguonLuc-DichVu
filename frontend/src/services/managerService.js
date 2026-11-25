@@ -21,6 +21,7 @@ const request = async (url, { method = 'GET', token, body, isFormData = false } 
 };
 
 export const managerService = {
+  // --- Tiếp nhận & Thẩm định yêu cầu ---
   getAllRequests: (token) => request(`${REQUEST_API}/all`, { token }),
 
   claimRequest: (token, requestId) =>
@@ -32,6 +33,7 @@ export const managerService = {
       token,
       body: payload,
     }),
+  // --- Lập báo giá & Soạn hợp đồng ---
   getQuoteContractData: (token) => request(`${QUOTE_CONTRACT_API}/data`, { token }),
   createQuotation: (token, payload) =>
     request(`${QUOTE_CONTRACT_API}/quotes`, { method: 'POST', token, body: payload }),

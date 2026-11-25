@@ -17,6 +17,10 @@ import MyRequestsTab from '../components/client/tabs/MyRequestsTab';
 import CreateRequestModal from '../components/client/modals/CreateRequestModal';
 import ClarifyRequestModal from '../components/client/modals/ClarifyRequestModal';
 
+import { useClientQuotesContracts } from '../hooks/useClientQuotesContracts';
+import ClientQuotesContractsTab from '../components/client/tabs/ClientQuotesContractsTab';
+import SignContractModal from '../components/client/modals/SignContractModal';
+
 export function ClientDashboard() {
   const { user, token } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
@@ -28,9 +32,12 @@ export function ClientDashboard() {
   const pendingList = req.requests.filter((r) => r.status === 'Chờ xử lý');
   const approvedScopeList = req.requests.filter((r) => r.status === 'Đã chốt phạm vi');
 
+  const qc = useClientQuotesContracts(token, setNotice);
+
   const menu = getClientMenu({
     catalogCount: req.catalogs.length,
     requestCount: req.requests.length,
+    pendingQuotes: qc.pendingActionCount,
   });
   const currentMeta = CLIENT_TAB_META[activeTab] || CLIENT_TAB_META.overview;
 
@@ -166,7 +173,19 @@ export function ClientDashboard() {
         />
       )}
 
-      {['quotes', 'projects', 'payments', 'deliverables'].includes(activeTab) && (
+      {activeTab === 'quotes' && (
+        <ClientQuotesContractsTab
+          quotations={qc.quotations}
+          contracts={qc.contracts}
+          loading={qc.loading}
+          submitting={qc.submitting}
+          onRespondQuote={qc.handleRespondQuote}
+          onOpenSignContract={qc.openSignModal}
+          onRefresh={qc.fetchData}
+        />
+      )}
+
+      {['projects', 'payments', 'deliverables'].includes(activeTab) && (
         <div className={`${cardClass} text-xs text-[#6b7c74]`}>
           Phân hệ <strong>{currentMeta.breadcrumb}</strong> sẽ được kết nối sau khi hoàn tất luồng thẩm định &amp; lập báo giá của Manager.
         </div>
@@ -189,6 +208,13 @@ export function ClientDashboard() {
         submitting={req.submitting}
         onClose={req.closeClarifyModal}
         onSubmit={req.handleClarifySubmit}
+      />
+      <SignContractModal
+        open={qc.signModal.open}
+        contract={qc.signModal.contract}
+        submitting={qc.submitting}
+        onClose={qc.closeSignModal}
+        onConfirmSign={qc.handleSignContract}
       />
     </DashboardLayout>
   );

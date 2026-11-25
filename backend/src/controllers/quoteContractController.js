@@ -432,6 +432,227 @@ const sendContractToClient = async (req, res) => {
     });
   }
 };
+// 6. Client tải danh sách Báo giá (đã gửi) & Hợp đồng (đã trình ký) của chính mình
+const getClientQuoteContractData = async (req, res) => {
+  try {
+    const clientId = getCurrentUserId(req.user);
+    if (!clientId) {
+      return res.status(401).json({ message: 'Không xác định được tài khoản Client.' });
+    }
+
+    const pool = await connectDB();
+
+    // Chỉ lấy báo giá Manager đã gửi đi (ẩn 'Bản nháp')
+    const quotesRes = await pool
+      .request()
+      .input('client_id', sql.VarChar(20), clientId)
+      .query(`
+        SELECT
+          q.id,
+          q.request_id,
+          q.version_number,
+          q.quote_type,
+          q.items_detail,
+          q.tax_amount,
+          q.total_amount,
+          q.payment_terms,
+          CONVERT(VARCHAR(10), q.valid_until, 23) AS valid_until,
+          q.status,
+          CONVERT(VARCHAR(19), q.created_at, 126) + '+07:00' AS created_at,
+          sr.title AS request_title,
+          sc.service_name,
+          u.full_name AS manager_name,
+          u.email AS manager_email,
+          (SELECT TOP 1 ct.id FROM dbo.[contracts] ct WHERE ct.quote_id = q.id) AS contract_id
+        FROM dbo.[quotations] q
+        INNER JOIN dbo.[service_requests] sr ON q.request_id = sr.id
+        LEFT JOIN dbo.[service_catalogs] sc ON sr.service_id = sc.id
+        LEFT JOIN dbo.[users] u ON q.created_by = u.id
+        WHERE sr.client_id = @client_id
+          AND q.status <> N'Bản nháp'
+        ORDER BY q.request_id DESC, q.version_number DESC, q.id DESC
+      `);
+
+    // Chỉ lấy hợp đồng đã được trình duyệt / ký kết (ẩn 'Bản thảo' nội bộ của Manager)
+    const contractsRes = await pool
+      .request()
+      .input('client_id', sql.VarChar(20), clientId)
+      .query(`
+        SELECT
+          ct.id,
+          ct.contract_code,
+          ct.quote_id,
+          ct.legal_info,
+          ct.total_value,
+          ct.payment_stages,
+          ct.max_free_revisions,
+          ct.cancel_policy,
+          ct.contract_file_url,
+          CASE WHEN ct.signed_date IS NOT NULL
+            THEN CONVERT(VARCHAR(19), ct.signed_date, 126) + '+07:00'
+            ELSE NULL
+          END AS signed_date,
+          ct.status,
+          q.version_number,
+          q.quote_type,
+          sr.id AS request_id,
+          sr.title AS request_title,
+          m.full_name AS manager_name,
+          m.email AS manager_email
+        FROM dbo.[contracts] ct
+        INNER JOIN dbo.[quotations] q ON ct.quote_id = q.id
+        INNER JOIN dbo.[service_requests] sr ON q.request_id = sr.id
+        LEFT JOIN dbo.[users] m ON ct.manager_id = m.id
+        WHERE ct.client_id = @client_id
+          AND ct.status <> N'Bản thảo'
+        ORDER BY ct.id DESC
+      `);
+
+    const quotations = quotesRes.recordset.map((q) => ({
+      ...q,
+      items_detail: safeParseItems(q.items_detail),
+    }));
+
+    return res.status(200).json({
+      quotations,
+      contracts: contractsRes.recordset,
+    });
+  } catch (error) {
+    console.error('Lỗi tải Báo giá & Hợp đồng phía Client:', error);
+    return res.status(500).json({
+      message: `Lỗi máy chủ khi tải Báo giá & Hợp đồng: ${error.message}`,
+    });
+  }
+};
+
+// 7. Client phản hồi báo giá: accept (Đồng ý) | adjust (Cần điều chỉnh) | reject (Từ chối)
+const respondToQuotation = async (req, res) => {
+  try {
+    const clientId = getCurrentUserId(req.user);
+    const quoteId = Number(req.params.id);
+    const { action } = req.body; // 'accept' | 'adjust' | 'reject'
+
+    const actionStatusMap = {
+      accept: 'Chấp nhận',
+      adjust: 'Cần điều chỉnh',
+      reject: 'Từ chối / Đóng',
+    };
+
+    const nextStatus = actionStatusMap[action];
+    if (!nextStatus) {
+      return res.status(400).json({ message: 'Hành động phản hồi báo giá không hợp lệ.' });
+    }
+
+    const pool = await connectDB();
+    const checkRes = await pool
+      .request()
+      .input('id', sql.Int, quoteId)
+      .input('client_id', sql.VarChar(20), clientId)
+      .query(`
+        SELECT q.id, q.request_id, q.version_number, q.status,
+               CONVERT(VARCHAR(10), q.valid_until, 23) AS valid_until
+        FROM dbo.[quotations] q
+        INNER JOIN dbo.[service_requests] sr ON q.request_id = sr.id
+        WHERE q.id = @id AND sr.client_id = @client_id
+      `);
+
+    if (checkRes.recordset.length === 0) {
+      return res.status(404).json({ message: 'Không tìm thấy bản báo giá thuộc tài khoản của bạn.' });
+    }
+
+    const quote = checkRes.recordset[0];
+    if (quote.status !== 'Đã gửi') {
+      return res.status(400).json({
+        message: `Chỉ có thể phản hồi báo giá đang ở trạng thái "Đã gửi" (hiện tại: "${quote.status}").`,
+      });
+    }
+
+    // Chặn duyệt nếu báo giá đã quá hạn hiệu lực
+    if (action === 'accept' && quote.valid_until) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (quote.valid_until < todayStr) {
+        await pool
+          .request()
+          .input('id', sql.Int, quoteId)
+          .query(`UPDATE dbo.[quotations] SET status = N'Hết hạn' WHERE id = @id`);
+        return res.status(400).json({
+          message: 'Báo giá này đã quá hạn hiệu lực. Vui lòng liên hệ Manager tạo phiên bản báo giá mới.',
+        });
+      }
+    }
+
+    await pool
+      .request()
+      .input('id', sql.Int, quoteId)
+      .input('status', sql.NVarChar(50), nextStatus)
+      .query(`UPDATE dbo.[quotations] SET status = @status WHERE id = @id`);
+
+    const msgMap = {
+      accept: `Bạn đã chấp nhận báo giá v${quote.version_number}! Manager sẽ soạn và gửi bản thảo hợp đồng cho bạn.`,
+      adjust: `Đã gửi yêu cầu điều chỉnh cho báo giá v${quote.version_number}. Manager sẽ tạo phiên bản báo giá mới.`,
+      reject: `Bạn đã từ chối và đóng báo giá v${quote.version_number}.`,
+    };
+
+    return res.status(200).json({ message: msgMap[action] });
+  } catch (error) {
+    console.error('Lỗi phản hồi báo giá:', error);
+    return res.status(500).json({ message: `Lỗi máy chủ khi phản hồi báo giá: ${error.message}` });
+  }
+};
+
+// 8. Client kiểm duyệt & ký hợp đồng điện tử ('Chờ duyệt' -> 'Đã ký', lưu signed_date)
+const signContractByClient = async (req, res) => {
+  try {
+    const clientId = getCurrentUserId(req.user);
+    const contractId = Number(req.params.id);
+    const { agreed } = req.body;
+
+    if (!agreed) {
+      return res.status(400).json({
+        message: 'Vui lòng tích xác nhận đồng ý toàn bộ điều khoản pháp lý trước khi ký hợp đồng.',
+      });
+    }
+
+    const pool = await connectDB();
+    const checkRes = await pool
+      .request()
+      .input('id', sql.Int, contractId)
+      .input('client_id', sql.VarChar(20), clientId)
+      .query(`
+        SELECT id, contract_code, status
+        FROM dbo.[contracts]
+        WHERE id = @id AND client_id = @client_id
+      `);
+
+    if (checkRes.recordset.length === 0) {
+      return res.status(404).json({ message: 'Không tìm thấy hợp đồng thuộc tài khoản của bạn.' });
+    }
+
+    const contract = checkRes.recordset[0];
+    if (contract.status !== 'Chờ duyệt') {
+      return res.status(400).json({
+        message: `Chỉ có thể ký hợp đồng ở trạng thái "Chờ duyệt" (hiện tại: "${contract.status}").`,
+      });
+    }
+
+    await pool
+      .request()
+      .input('id', sql.Int, contractId)
+      .query(`
+        UPDATE dbo.[contracts]
+        SET signed_date = GETDATE(),
+            status = N'Đã ký'
+        WHERE id = @id
+      `);
+
+    return res.status(200).json({
+      message: `Ký kết hợp đồng ${contract.contract_code} thành công! Bạn có thể tiến hành thanh toán đặt cọc theo lộ trình cam kết.`,
+    });
+  } catch (error) {
+    console.error('Lỗi ký hợp đồng điện tử:', error);
+    return res.status(500).json({ message: `Lỗi máy chủ khi ký hợp đồng: ${error.message}` });
+  }
+};
 
 module.exports = {
   getManagerQuoteContractData,
@@ -439,4 +660,7 @@ module.exports = {
   updateQuotationStatus,
   createContractFromQuote,
   sendContractToClient,
+  getClientQuoteContractData,
+  respondToQuotation,
+  signContractByClient,
 };
